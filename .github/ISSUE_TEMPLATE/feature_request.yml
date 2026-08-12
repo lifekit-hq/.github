@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose an improvement
+title: "[feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the problem before the solution. What can't you do today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you'd like it to work. Sketches and alternatives welcome.
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope check
+      description: The stack is a federation - a change should belong to exactly one repository.
+      options:
+        - Fits entirely in this repository
+        - Might need changes in more than one repo (explain above)
+    validations:
+      required: true

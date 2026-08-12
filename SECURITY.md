@@ -12,5 +12,5 @@ acknowledgement within a few days.
 
 This stack is **self-hosted and single-user by design**: loopback-only network
 posture by default, no public ingress, no multi-tenancy. Secrets and personal
-data never live in these repositories — configuration is templated and values
+data never live in these repositories - configuration is templated and values
 are supplied at deploy time.

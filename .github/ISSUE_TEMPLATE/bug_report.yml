@@ -1,0 +1,34 @@
+name: Bug report
+description: Something is broken
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, what actually happened.
+      placeholder: |
+        1. Ran `...`
+        2. Expected `...`
+        3. Got `...`
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output / logs
+      description: Paste output as-is. Redact anything secret or personal.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: v0.3.0 or a commit SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: e.g. Ubuntu 24.04 VPS, Docker Compose v2.29, Python 3.12

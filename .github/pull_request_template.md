@@ -9,6 +9,3 @@
 ## Tests
 
 <!-- Command run + result. Behavior changes must ship a named regression test. -->
-
----
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
