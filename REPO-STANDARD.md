@@ -63,8 +63,13 @@ Every PR runs the repo's full gate set unconditionally — no soft-fail steps:
       cold must find everything it needs there
 - [ ] Pre-commit hook (husky + lint-staged or equivalent) enforcing the same gates
       locally that CI enforces remotely — agents and humans hit the same wall
-- [ ] Only `README.md` and `CLAUDE.md` at the repo root; durable docs live in `docs/`,
-      specs in `specs/` — session artifacts don't get files
+- [ ] Markdown at the repo root is `README.md`, `CLAUDE.md`, and — where devclaw
+      manages the repo — its machine-maintained onboarding set (`AGENTS.md` pointer,
+      `ARCHITECTURE.md`), which devclaw's onboarding writes at the root and its
+      staleness signals watch there. `LICENSE` and the release-please-managed
+      `CHANGELOG.md` also belong at the root; tool/config dotfiles are fine.
+      Everything else: durable docs live in `docs/`, specs in `specs/` — session
+      artifacts don't get files
 
 ## Adoption
 
@@ -73,3 +78,16 @@ Audit a repo against the checklist, file one issue per repo titled
 Divergence is allowed where a repo genuinely differs (e.g. no published packages →
 no publish job) — note the divergence in the repo's CLAUDE.md rather than silently
 skipping.
+
+Per-repo adoption issues (filed 2026-08-25, implementation 2026-08-29;
+[lifekit-common](https://github.com/lifekit-hq/lifekit-common) is the reference and
+needs none):
+
+- [devclaw#695](https://github.com/lifekit-hq/devclaw/issues/695)
+- [finance-sentry#470](https://github.com/lifekit-hq/finance-sentry/issues/470)
+- [lifekit-dashboard#84](https://github.com/lifekit-hq/lifekit-dashboard/issues/84)
+- [lifekit-stack#130](https://github.com/lifekit-hq/lifekit-stack/issues/130)
+- [career-kit#42](https://github.com/lifekit-hq/career-kit/issues/42)
+- [lifekit#2](https://github.com/lifekit-hq/lifekit/issues/2)
+- [lifekit-health#2](https://github.com/lifekit-hq/lifekit-health/issues/2)
+- [openclaw-config#2](https://github.com/lifekit-hq/openclaw-config/issues/2)
