@@ -55,6 +55,10 @@ Every PR runs the repo's full gate set unconditionally — no soft-fail steps:
       where the stack allows)
 - [ ] Tests (with coverage floors once a suite exists — ratchet, never lower)
 - [ ] Build (all shippable artifacts, including docs/catalog builds like Storybook)
+- [ ] Dependency advisories + license allowlist (`pip-audit`, `npm audit` /
+      dependency-review, or the toolchain's equivalent). Every ignored advisory carries
+      a reason and a revisit condition in the config, never a bare ignore
+- [ ] Secret scanning (gitleaks or equivalent) on every PR
 
 ## 7. Agent harness (in-repo, independent)
 
@@ -70,8 +74,41 @@ Every PR runs the repo's full gate set unconditionally — no soft-fail steps:
       `CHANGELOG.md` also belong at the root; tool/config dotfiles are fine.
       Everything else: durable docs live in `docs/`, specs in `specs/` — session
       artifacts don't get files
+- [ ] `SECURITY.md` at the root, with GitHub private vulnerability reporting enabled:
+      state the boundary (what is and is not defended) and the reporting channel.
+      Promise no response time nobody is on call for
+- [ ] Machine-facing contracts (env vars, exit codes, event schemas, tool lists) each
+      get a reference doc under `docs/reference/` pinned by a doc-sync test - a contract
+      no test can see rots silently
+- [ ] Runbooks are shaped as failure modes: for each, one distinguishing check and
+      one action
+
+## 8. README
+
+The README is the product narrative, in this order. A section that does not apply is
+omitted, never left as a stub:
+
+- [ ] What it is, in one paragraph, then how to run it (install / quick start) - before
+      any architecture
+- [ ] Honest status: every capability claim carries its evidence tier where the claim
+      is made - **production** (exercised live), **experimental** (built, not
+      load-bearing), **paper** (specified, not built)
+- [ ] What it deliberately excludes / is NOT - the non-goals, so scope creep by
+      osmosis stays visible
+- [ ] Docs map (a link to `docs/INDEX.md` or the list itself) and license
+- [ ] No process history in the README (which issue closed what, incident war
+      stories) - that lives in the changelog and the commits. No superlative a reader
+      cannot verify from the repo
+- [ ] A repo that executes untrusted code (agent output, third-party scripts) also
+      ships `docs/threat-model.md`: what the boundary defends against, what it does
+      not, and how the boundary is verified from inside
 
 ## Adoption
+
+Amended 2026-09-06: supply-chain gates (6), `SECURITY.md` + reference docs + runbook
+shape (7), and the README section (8) - borrowed after a code-level read of
+[shleder/vetto](https://github.com/shleder/vetto)'s repo hygiene; each repo's adoption
+issue below re-audits against them.
 
 Audit a repo against the checklist, file one issue per repo titled
 "Adopt the repo gold standard", fix the gaps in one or two PRs, link the issue here.
