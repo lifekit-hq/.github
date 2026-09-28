@@ -1,0 +1,88 @@
+name: Python CI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      install:
+        description: "pip install target, e.g. \"-e .[dev]\""
+        required: true
+        type: string
+      run:
+        description: "The command(s) to run"
+        required: true
+        type: string
+      python-version:
+        required: false
+        type: string
+        default: "3.12"
+      runner:
+        description: "JSON runs-on value, e.g. \"ubuntu-latest\" or [\"self-hosted\", \"linux\"]"
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+      cache-key-files:
+        description: "Glob(s) hashFiles uses to key the self-hosted venv cache"
+        required: false
+        type: string
+        default: "pyproject.toml\nrequirements*.txt"
+
+permissions: {}
+
+jobs:
+  python-ci:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # Hosted runners get provisioned Python + pip caching from setup-python.
+      - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+
+      - name: Install (hosted)
+        if: runner.environment == 'github-hosted'
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet ${{ inputs.install }}
+
+      # setup-python cannot provision a Python it doesn't already have a build for
+      # on some self-hosted architectures. Reuse a persistent venv instead of
+      # actions/cache: a local directory beats a network round trip on a
+      # persistent runner. The venv is built in a temp dir and mv'd into place so
+      # a concurrent job can never see a half-built venv.
+      - name: Install (self-hosted)
+        if: runner.environment != 'github-hosted'
+        env:
+          CACHE_KEY_FILES: ${{ inputs.cache-key-files }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          key_files=()
+          while IFS= read -r glob; do
+            [[ -z "$glob" ]] && continue
+            for f in $glob; do key_files+=("$f"); done
+          done <<< "$CACHE_KEY_FILES"
+          if [[ "${#key_files[@]}" -eq 0 ]]; then
+            hash="none"
+          else
+            hash=$(sort <<< "${key_files[*]}" | xargs sha256sum | sha256sum | cut -d' ' -f1)
+          fi
+          venv_dir="$HOME/.cache/ci-venv/${{ github.event.repository.name }}/${hash}"
+          if [[ ! -x "${venv_dir}/bin/python" ]]; then
+            tmp_dir=$(mktemp -d -p "$HOME/.cache")
+            python3 -m venv "${tmp_dir}/venv"
+            "${tmp_dir}/venv/bin/pip" install --quiet --upgrade pip
+            "${tmp_dir}/venv/bin/pip" install --quiet ${{ inputs.install }}
+            mkdir -p "$(dirname "${venv_dir}")"
+            mv "${tmp_dir}/venv" "${venv_dir}"
+          fi
+          echo "${venv_dir}/bin" >> "$GITHUB_PATH"
+
+      - name: Run
+        run: ${{ inputs.run }}
