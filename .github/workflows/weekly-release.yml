@@ -1,0 +1,90 @@
+name: Weekly Release (reusable)
+
+# Cuts a release on a cadence by merging the Release Please PR that accumulates on
+# main. Release Please keeps that PR current on every merge; this job just lands
+# it on schedule. No releasable commits since the last release -> no open PR -> the
+# job no-ops.
+#
+# The merge uses the release bot app token (the same app release-please.yml pushes
+# with), so it is a real push to main: Release Please tags + publishes the release
+# through its own push trigger. No explicit dispatch is needed.
+#
+# Callers keep their own `schedule:` trigger; this template only defines the job.
+
+on:
+  workflow_call:
+    inputs:
+      app-id:
+        description: "The release bot GitHub App's ID (caller passes vars.RELEASE_APP_ID)"
+        required: true
+        type: string
+      runner:
+        description: "JSON runs-on value, e.g. \"ubuntu-latest\" or [\"self-hosted\", \"linux\"]"
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+    secrets:
+      app-private-key:
+        required: true
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.app-private-key }}
+      - name: Merge pending release PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --state open --label "autorelease: pending" --json number --jq '.[0].number // empty')
+          if [[ -z "$pr" ]]; then
+            echo "No pending release PR — nothing to release this week."
+            exit 0
+          fi
+
+          branch=$(gh pr view "$pr" --json headRefName --jq .headRefName)
+
+          # Strict "up to date" branch protection refuses the merge otherwise.
+          # Release Please rebuilds the branch only when the PR content changes,
+          # so commits hidden from the changelog (ci, chore, ...) can leave it
+          # behind main.
+          behind() { gh api "repos/$GH_REPO/compare/main...$branch" --jq .behind_by; }
+          if [[ "$(behind)" -gt 0 ]]; then
+            echo "Release branch is behind main — updating it"
+            gh pr update-branch "$pr"
+            for _ in $(seq 1 24); do
+              [[ "$(behind)" -eq 0 ]] && break
+              sleep 5
+            done
+            [[ "$(behind)" -eq 0 ]] || { echo "Release branch is still behind main"; exit 1; }
+          fi
+
+          sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid)
+
+          # The release branch gets its checks from pull_request runs on every
+          # push to it. A branch update just above needs a moment to register
+          # them; then wait for any still in flight — a failed check aborts
+          # before the merge.
+          for _ in $(seq 1 24); do
+            checks=$(gh pr checks "$pr" --json name --jq length 2>/dev/null || true)
+            [[ "${checks:-0}" -gt 0 ]] && break
+            sleep 5
+          done
+          gh pr checks "$pr" --watch --fail-fast
+
+          echo "Merging release PR #$pr at $sha"
+          # --match-head-commit: refuse to merge anything but the commit the
+          # checks above just passed.
+          gh pr merge "$pr" --squash --delete-branch --match-head-commit "$sha"

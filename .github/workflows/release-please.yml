@@ -1,0 +1,68 @@
+name: Release Please (reusable)
+
+# GITHUB_TOKEN pushes fire no workflows, so a release PR pushed with it never gets
+# the required checks and can never merge. The release bot GitHub App mints a
+# one-hour token per run; its pushes trigger pull_request CI runs like any other
+# contributor's. Callers pass their own app-id/secret for the app installed on
+# their repo.
+
+on:
+  workflow_call:
+    inputs:
+      app-id:
+        description: "The release bot GitHub App's ID (caller passes vars.RELEASE_APP_ID)"
+        required: true
+        type: string
+      runner:
+        description: "JSON runs-on value, e.g. \"ubuntu-latest\" or [\"self-hosted\", \"linux\"]"
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+      config-file:
+        required: false
+        type: string
+        default: "release-please-config.json"
+      manifest-file:
+        required: false
+        type: string
+        default: ".release-please-manifest.json"
+    secrets:
+      app-private-key:
+        required: true
+    outputs:
+      release_created:
+        value: ${{ jobs.release-please.outputs.release_created }}
+      tag_name:
+        value: ${{ jobs.release-please.outputs.tag_name }}
+      pr:
+        value: ${{ jobs.release-please.outputs.pr }}
+
+permissions: {}
+
+concurrency:
+  group: release-please-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      pr: ${{ steps.release.outputs.pr }}
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.app-private-key }}
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: ${{ inputs.config-file }}
+          manifest-file: ${{ inputs.manifest-file }}

@@ -3,8 +3,10 @@
 The one definition of what a lifekit-hq repository looks like. **Reference
 implementation: [lifekit-common](https://github.com/lifekit-hq/lifekit-common)** —
 when this document and that repo disagree, fix one of them, never fork the standard
-silently. Each repo carries its own harness (CLAUDE.md, hooks, CI) so it works
-standalone; this document is what those per-repo copies must agree on.
+silently. Each repo carries its own harness (CLAUDE.md, hooks) so it works
+standalone; CI calls pinned reusable workflows from
+[lifekit-hq/.github](https://github.com/lifekit-hq/.github). This document is what
+those per-repo copies must agree on.
 
 ## 1. Repo metadata
 
@@ -39,10 +41,16 @@ standalone; this document is what those per-repo copies must agree on.
 ## 5. Releases
 
 - [ ] release-please maintains the release PR: version bump (lockstep across packages
-      where the repo publishes several) + generated `CHANGELOG.md`
-- [ ] Weekly Release cron (Mondays 08:00 UTC) merges the pending release PR;
-      `workflow_dispatch` = "release now". GITHUB_TOKEN merges don't fire push
-      workflows — the cron job must dispatch the tag/publish workflow explicitly
+      where the repo publishes several) + generated `CHANGELOG.md`, via the
+      `release-please.yml` reusable workflow pinned from
+      [lifekit-hq/.github](https://github.com/lifekit-hq/.github)
+- [ ] Weekly Release cron (Mondays 08:00 UTC) merges the pending release PR, via the
+      `weekly-release.yml` reusable workflow; `workflow_dispatch` = "release now".
+      Both templates authenticate as a release bot GitHub App (a short-lived
+      installation token minted per run), never `GITHUB_TOKEN` — a `GITHUB_TOKEN`
+      push fires no workflows, so a release PR pushed with it never gets the
+      required checks and can never merge. An app-token merge is a real push, so
+      release-please's own tag/publish trigger fires without an explicit dispatch
 - [ ] Publishing (npm to GitHub Packages, images to GHCR, deploys) hangs off the
       release-created event, never off ad-hoc pushes
 
@@ -58,7 +66,37 @@ Every PR runs the repo's full gate set unconditionally — no soft-fail steps:
 - [ ] Dependency advisories + license allowlist (`pip-audit`, `npm audit` /
       dependency-review, or the toolchain's equivalent). Every ignored advisory carries
       a reason and a revisit condition in the config, never a bare ignore
-- [ ] Secret scanning (gitleaks or equivalent) on every PR
+- [ ] Secret scanning (gitleaks or equivalent) on every PR — the `secrets-scan.yml`
+      reusable workflow where the toolchain allows it
+
+**CI conventions:**
+
+- [ ] Concurrency is the caller's job — every workflow file that runs on `push` or
+      `pull_request` carries:
+      ```yaml
+      concurrency:
+        group: ${{ github.workflow }}-${{ github.ref }}
+        cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      ```
+- [ ] Dependency caching uses the toolchain's built-in flag where one exists
+      (`cache: npm` for `actions/setup-node`, `cache: pip` for
+      `actions/setup-python`); .NET/NuGet caches explicitly:
+      ```yaml
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+      ```
+- [ ] Docker builds: copy manifests before sources, never rely on cache-mount
+      contents across `RUN` steps, and write the gha buildx cache from the default
+      branch only
+- [ ] Public-repo PR jobs run on hosted runners (`ubuntu-latest`); a private caller
+      passes its own runner labels through the template's `runner` input — never
+      hardcode private runner labels as a template default
+- [ ] The repo setting "Allow GitHub Actions to create and approve pull requests"
+      is irrelevant once release automation runs on the app token, not
+      `GITHUB_TOKEN`
 
 ## 7. Agent harness (in-repo, independent)
 
