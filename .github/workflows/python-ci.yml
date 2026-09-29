@@ -54,11 +54,17 @@ jobs:
       # setup-python cannot provision a Python it doesn't already have a build for
       # on some self-hosted architectures. Reuse a persistent venv instead of
       # actions/cache: a local directory beats a network round trip on a
-      # persistent runner. The venv is built in a temp dir and mv'd into place so
-      # a concurrent job can never see a half-built venv. A ".ci-venv-ok" marker
-      # is written only after install succeeds, so a cache hit that lacks it
-      # (e.g. install failed, or was silently truncated by nullglob eating an
-      # extras token) is rebuilt from scratch instead of reused forever.
+      # persistent runner. A Python venv is not relocatable - every console
+      # script (pip, mypy, pytest, ...) bakes an absolute shebang to the path it
+      # was created at - so the venv is built directly at its final cache path
+      # instead of in a temp dir that gets moved. A ".ci-venv-ok" marker holding
+      # that same path is written only after install succeeds, so a cache hit
+      # is rejected and the venv rebuilt from scratch when: the marker is
+      # missing (e.g. install failed, or was silently truncated by nullglob
+      # eating an extras token); or the marker's recorded path doesn't match
+      # the current venv_dir, which also self-heals a v1.0.1-era venv that was
+      # built in a temp dir and moved (its console scripts still point at the
+      # vanished temp path even though a marker is present).
       - name: Install (self-hosted)
         if: runner.environment != 'github-hosted'
         env:
@@ -79,15 +85,19 @@ jobs:
           fi
           venv_dir="$HOME/.cache/ci-venv/${{ github.event.repository.name }}/${hash}"
           marker="${venv_dir}/.ci-venv-ok"
+          stale=0
           if [[ ! -x "${venv_dir}/bin/python" || ! -f "${marker}" ]]; then
+            stale=1
+          elif [[ "$(cat "${marker}")" != "${venv_dir}" ]]; then
+            stale=1
+          fi
+          if [[ "${stale}" -eq 1 ]]; then
             rm -rf "${venv_dir}"
-            tmp_dir=$(mktemp -d -p "$HOME/.cache")
-            python3 -m venv "${tmp_dir}/venv"
-            "${tmp_dir}/venv/bin/pip" install --quiet --upgrade pip
-            "${tmp_dir}/venv/bin/pip" install --quiet ${{ inputs.install }}
-            touch "${tmp_dir}/venv/.ci-venv-ok"
             mkdir -p "$(dirname "${venv_dir}")"
-            mv "${tmp_dir}/venv" "${venv_dir}"
+            python3 -m venv "${venv_dir}"
+            "${venv_dir}/bin/pip" install --quiet --upgrade pip
+            "${venv_dir}/bin/pip" install --quiet ${{ inputs.install }}
+            echo "${venv_dir}" > "${marker}"
           fi
           echo "${venv_dir}/bin" >> "$GITHUB_PATH"
 
