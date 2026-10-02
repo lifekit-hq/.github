@@ -58,9 +58,9 @@ Products share nothing by code or runtime. The only things they have in common a
 
 - **Identity** - OIDC from one identity provider; each app keeps its own authorization.
 - **The platform contract** - health and readiness, `/metrics`, JSON logs with a trace id,
-  OTLP traces, running behind the edge, and owning its own topics.
-- **Events on owned topics** - the only cross-product data path. Never another product's
-  database or tables.
+  OTLP traces, and running behind the edge.
+- **Events on owned topics (planned)** - once the events platform exists, the cross-product
+  data path. Never another product's database or tables.
 - **Versioned `lifekit-common` packages** - the consumer chooses when to bump; a cross-repo
   change is one PR per consuming repo.
 - **Agents reach products through MCP or API only.**
