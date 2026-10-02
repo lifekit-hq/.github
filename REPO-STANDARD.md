@@ -141,12 +141,48 @@ omitted, never left as a stub:
       ships `docs/threat-model.md`: what the boundary defends against, what it does
       not, and how the boundary is verified from inside
 
+## 9. Platform contract
+
+Every repo that ships a running service meets the same platform contract, so the
+platform (owned by `lifekit-stack`, by no product) can run, observe, and secure it
+without knowing what it does. The stack's deploy checks the health/readiness, metrics,
+JSON-log, OTLP and behind-the-edge items, through a static declaration check plus a
+running-container check, not by convention. The topics item is not checked there until a
+broker exists.
+
+- [ ] Health and readiness endpoints
+- [ ] `/metrics` in Prometheus format
+- [ ] JSON logs carrying the trace id
+- [ ] OTLP traces, with one `traceparent` propagated end to end
+- [ ] Sits behind the edge: TLS and identity are the edge's job, and the service trusts
+      the forwarded OIDC identity instead of running its own login. Authorization stays
+      the service's own
+- [ ] Owns its topics (planned; applies once the events platform exists): events it
+      publishes are on topics it owns, and events are the cross-product data path - never
+      another product's database or tables
+- [ ] Runs alone: its own repo, image, database, CI and release cadence, needing only a
+      stub identity provider. Shared code arrives only as versioned `lifekit-common`
+      packages, and the consumer chooses when to bump
+
+## 10. Module rule (products)
+
+Inside a product, modules follow the same separation as products do:
+
+- [ ] Each module owns its schema
+- [ ] Cross-module reads go through read ports, never into another module's tables
+- [ ] Extractability: a module can be lifted into its own process in one PR that touches
+      only its folder plus one port adapter. Enforce it with an architecture test in CI
+
 ## Adoption
 
 Amended 2026-09-06: supply-chain gates (6), `SECURITY.md` + reference docs + runbook
 shape (7), and the README section (8) - borrowed after a code-level read of
 [shleder/vetto](https://github.com/shleder/vetto)'s repo hygiene; each repo's adoption
 issue below re-audits against them.
+
+Amended 2026-10-02: the platform contract (9) and module rule (10) apply to new repos
+now; existing repos adopt them through their adoption re-audits as the platform pieces
+they depend on land.
 
 Audit a repo against the checklist, file one issue per repo titled
 "Adopt the repo gold standard", fix the gaps in one or two PRs, link the issue here.

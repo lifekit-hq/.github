@@ -14,23 +14,63 @@ and wiring*, never in nested code - so any part can be replaced without disturbi
 
 ## The shape
 
-```
-lifekit-stack                  ← trunk: declares + composes the stack (compose + env schema)
-   ├── operator agents          the human-facing layer
-   │        │  consumes (MCP)
-   ├── devclaw  ◄───────────────┘  a self-driving software-development loop, behind MCP
-   └── surfaces & agents        dashboards, health, domain workers
+Products are separate projects that run alone. The platform is owned by no product, and
+the shared library is consumed as versioned packages. Arrows are contracts, not imports.
+
+```mermaid
+flowchart TB
+    subgraph SURF["Surfaces"]
+        DASH["lifekit-dashboard<br/>top-level shell"]
+        AGENTS["OpenClaw agents"]
+    end
+    subgraph PROD["Products - each its own repo, image, database, CI, release"]
+        FS["finance-sentry"]
+        XUI["xui"]
+        DC["devclaw"]
+        CK["career-kit"]
+        LH["lifekit-health"]
+    end
+    subgraph PLAT["Platform - lifekit-stack, owned by no product"]
+        EDGE["Edge<br/>Traefik + oauth2-proxy"]
+        ID["Identity<br/>Logto, OIDC"]
+        OBS["Observability<br/>Prometheus, Loki, Tempo via OTLP"]
+        EVT["Events<br/>owned topics (planned)"]
+    end
+    LIB["lifekit-common<br/>versioned packages"]
+
+    SURF --> EDGE
+    EDGE --> PROD
+    EDGE -. "forward-auth" .-> ID
+    AGENTS -. "MCP / API only" .-> PROD
+    PROD -. "health, /metrics, JSON logs, OTLP" .-> OBS
+    PROD -. "publish / consume owned topics" .-> EVT
+    LIB -. "consumer bumps the version" .-> PROD
 ```
 
-`devclaw` is a **peer** service, not a child of any one agent - it sits behind MCP, so any
-client can reach it. Operators *consume* it; they don't *own* it. That single boundary is
-what keeps the whole thing a federation instead of a tangle.
+`lifekit-stack` is the composition root: it brings up the platform with zero products.
+Every product must run alone with only a stub identity provider. That is what keeps it a
+federation instead of a tangle - and why any part can be moved, replaced, or scaled on
+its own.
+
+### Shared only by contract
+
+Products share nothing by code or runtime. The only things they have in common are:
+
+- **Identity** - OIDC from one identity provider; each app keeps its own authorization.
+- **The platform contract** - health and readiness, `/metrics`, JSON logs with a trace id,
+  OTLP traces, and running behind the edge.
+- **Events on owned topics (planned)** - once the events platform exists, the cross-product
+  data path. Never another product's database or tables.
+- **Versioned `lifekit-common` packages** - the consumer chooses when to bump; a cross-repo
+  change is one PR per consuming repo.
+- **Agents reach products through MCP or API only.**
 
 ## Open repositories
 
 | Repo | What it is |
 |---|---|
 | [**lifekit-stack**](https://github.com/lifekit-hq/lifekit-stack) | Composition root - infrastructure-as-code that deploys the whole stack to a fresh VPS |
+| [**lifekit-common**](https://github.com/lifekit-hq/lifekit-common) | Shared library, consumed as versioned packages; the reference implementation of the repo standard |
 | [**lifekit**](https://github.com/lifekit-hq/lifekit) | The file-based personal-AI framework (the engine) |
 | [**devclaw**](https://github.com/lifekit-hq/devclaw) | Durable-goal software-development loop: plan → sandboxed execution → verify gate → iterate |
 | [**finance-sentry**](https://github.com/lifekit-hq/finance-sentry) | Personal finance platform: bank, crypto, and brokerage sync with budgets and alerts |
