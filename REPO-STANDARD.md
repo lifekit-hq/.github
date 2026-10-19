@@ -103,6 +103,10 @@ Every PR runs the repo's full gate set unconditionally — no soft-fail steps:
         group: ${{ github.workflow }}-${{ github.ref }}
         cancel-in-progress: ${{ github.event_name == 'pull_request' }}
       ```
+      Exception: the workflow that calls `merge-class.yml` keys its group per run on
+      `release-please--*` branches, because a cancelled run is a failed check-run to
+      `weekly-release.yml`; copy the group from
+      [`merge-class.yml`](.github/workflows/merge-class.yml).
 - [ ] Dependency caching uses the toolchain's built-in flag where one exists
       (`cache: npm` for `actions/setup-node`, `cache: pip` for
       `actions/setup-python`); .NET/NuGet caches explicitly:
