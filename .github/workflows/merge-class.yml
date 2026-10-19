@@ -5,7 +5,11 @@ name: Merge Class (reusable)
 # the author or the fleet picks the class, this job only enforces that one is picked.
 # Callers trigger on pull_request types opened/labeled/unlabeled/synchronize and call
 # this workflow; the labels are read from the event payload, so the job needs no token
-# and no checkout.
+# and no checkout. Callers also add the standard `concurrency` block (REPO-STANDARD.md) so
+# a stale run from `opened` cannot finish after the `labeled` run and leave the check red.
+# PRs from release-please branches (`release-please--*`) are exempt and count as
+# `merge:auto`: the bot opens them unlabeled and weekly-release.yml fails on any failed
+# check-run on the release commit.
 
 on:
   workflow_call:
@@ -20,6 +24,11 @@ on:
 
 permissions: {}
 
+# Distinct group name so it never collides with a caller's own concurrency group.
+concurrency:
+  group: merge-class-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   merge-class:
     # inputs.runner is empty on this repo's own pull_request trigger.
@@ -30,8 +39,13 @@ jobs:
       - name: Require exactly one merge class label
         env:
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
+          if [[ "$HEAD_REF" == release-please--* ]]; then
+            echo "merge class: merge:auto (release-please branch exemption)"
+            exit 0
+          fi
           auto=$(jq -r 'map(select(. == "merge:auto")) | length' <<<"$LABELS")
           review=$(jq -r 'map(select(. == "merge:review")) | length' <<<"$LABELS")
           if [ "$auto" -eq 1 ] && [ "$review" -eq 0 ]; then

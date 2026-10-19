@@ -41,6 +41,9 @@ Ruling 2026-10-19, the auto-merge class:
 Every PR carries exactly one of the two labels; the reusable
 [`merge-class.yml`](.github/workflows/merge-class.yml) check fails a PR with none or
 both, and each repo's CI calls it as a required check. Unsure means `merge:review`.
+The one exemption: PRs whose head branch starts with `release-please--` count as
+`merge:auto` without a label, so the weekly release never sees a failed check on the
+release commit.
 
 Restart condition: an auto-merged PR causes an incident, then that sub-class returns
 to `merge:review` until the gate catches it.
