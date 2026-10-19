@@ -1,0 +1,63 @@
+name: Merge Class (reusable)
+
+# Every lifekit-hq PR carries its merge class as exactly one label: `merge:auto` or
+# `merge:review` (REPO-STANDARD.md, "Merge class"). No path-based auto-classification:
+# the author or the fleet picks the class, this job only enforces that one is picked.
+# Callers trigger on pull_request types opened/labeled/unlabeled/synchronize and call
+# this workflow; the labels are read from the event payload, so the job needs no token
+# and no checkout. Callers also add the standard `concurrency` block (REPO-STANDARD.md) so
+# a stale run from `opened` cannot finish after the `labeled` run and leave the check red,
+# but key the group like the one below: release-please PRs get a per-run group, because a
+# cancelled run is a failed check-run to weekly-release.yml.
+# PRs from release-please branches (`release-please--*`) are exempt and count as
+# `merge:auto`: the bot opens them unlabeled and weekly-release.yml fails on any failed
+# check-run on the release commit.
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: "JSON runs-on value, e.g. \"ubuntu-latest\" or [\"self-hosted\", \"linux\"]"
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+
+permissions: {}
+
+# Distinct group name so it never collides with a caller's own concurrency group.
+concurrency:
+  group: merge-class-${{ startsWith(github.head_ref, 'release-please--') && github.run_id || github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  merge-class:
+    # inputs.runner is empty on this repo's own pull_request trigger.
+    runs-on: ${{ fromJSON(inputs.runner || '"ubuntu-latest"') }}
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Require exactly one merge class label
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$HEAD_REF" == release-please--* ]]; then
+            echo "merge class: merge:auto (release-please branch exemption)"
+            exit 0
+          fi
+          auto=$(jq -r 'map(select(. == "merge:auto")) | length' <<<"$LABELS")
+          review=$(jq -r 'map(select(. == "merge:review")) | length' <<<"$LABELS")
+          if [ "$auto" -eq 1 ] && [ "$review" -eq 0 ]; then
+            echo "merge class: merge:auto"
+          elif [ "$auto" -eq 0 ] && [ "$review" -eq 1 ]; then
+            echo "merge class: merge:review"
+          elif [ "$auto" -eq 1 ] && [ "$review" -eq 1 ]; then
+            echo "::error title=Conflicting merge class::PR carries both merge:auto and merge:review - remove one. If unsure, keep merge:review."
+            exit 1
+          else
+            echo "::error title=Missing merge class::PR carries neither merge:auto nor merge:review - add exactly one. If unsure, use merge:review."
+            exit 1
+          fi

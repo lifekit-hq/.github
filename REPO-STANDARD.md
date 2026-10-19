@@ -21,7 +21,32 @@ those per-repo copies must agree on.
 - [ ] `P1` (firm: sized, acceptance criteria) / `P2` (named, unsized fog)
 - [ ] `needs-refinement` — fog that needs slicing before it can be sized
 - [ ] `devclaw-ready` — sized, criteria firm, dispatchable to an agent
+- [ ] `merge:auto` (green merges without review: internal tooling, CI and
+      infrastructure hygiene, dependency bumps, docs, test-only changes, restore-class
+      fixes) / `merge:review` (product-facing or architecture-changing: needs the
+      captain's review) - see "Merge class" below
 - [ ] Area labels as the repo needs them; no priority prefixes in titles
+
+### Merge class
+
+Ruling 2026-10-19, the auto-merge class:
+
+- **Merges green without review (`merge:auto`):** internal tooling, CI and
+  infrastructure hygiene, dependency bumps, docs, test-only changes, restore-class
+  fixes.
+- **Reviewed by the captain (`merge:review`):** product-facing changes (behaviour a
+  user sees) and architecture-changing ones (module boundaries, shared contracts in
+  lifekit-common, schemas and migrations, identity and security, deploy topology).
+
+Every PR carries exactly one of the two labels; the reusable
+[`merge-class.yml`](.github/workflows/merge-class.yml) check fails a PR with none or
+both, and each repo's CI calls it as a required check. Unsure means `merge:review`.
+The one exemption: PRs whose head branch starts with `release-please--` count as
+`merge:auto` without a label, so the weekly release never sees a failed check on the
+release commit.
+
+Restart condition: an auto-merged PR causes an incident, then that sub-class returns
+to `merge:review` until the gate catches it.
 
 ## 3. Planning
 
@@ -78,6 +103,10 @@ Every PR runs the repo's full gate set unconditionally — no soft-fail steps:
         group: ${{ github.workflow }}-${{ github.ref }}
         cancel-in-progress: ${{ github.event_name == 'pull_request' }}
       ```
+      Exception: the workflow that calls `merge-class.yml` keys its group per run on
+      `release-please--*` branches, because a cancelled run is a failed check-run to
+      `weekly-release.yml`; copy the group from
+      [`merge-class.yml`](.github/workflows/merge-class.yml).
 - [ ] Dependency caching uses the toolchain's built-in flag where one exists
       (`cache: npm` for `actions/setup-node`, `cache: pip` for
       `actions/setup-python`); .NET/NuGet caches explicitly:
