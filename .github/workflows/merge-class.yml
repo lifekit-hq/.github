@@ -1,0 +1,47 @@
+name: Merge Class (reusable)
+
+# Every lifekit-hq PR carries its merge class as exactly one label: `merge:auto` or
+# `merge:review` (REPO-STANDARD.md, "Merge class"). No path-based auto-classification:
+# the author or the fleet picks the class, this job only enforces that one is picked.
+# Callers trigger on pull_request types opened/labeled/unlabeled/synchronize and call
+# this workflow; the labels are read from the event payload, so the job needs no token
+# and no checkout.
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: "JSON runs-on value, e.g. \"ubuntu-latest\" or [\"self-hosted\", \"linux\"]"
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+
+permissions: {}
+
+jobs:
+  merge-class:
+    # inputs.runner is empty on this repo's own pull_request trigger.
+    runs-on: ${{ fromJSON(inputs.runner || '"ubuntu-latest"') }}
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Require exactly one merge class label
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          auto=$(jq -r 'map(select(. == "merge:auto")) | length' <<<"$LABELS")
+          review=$(jq -r 'map(select(. == "merge:review")) | length' <<<"$LABELS")
+          if [ "$auto" -eq 1 ] && [ "$review" -eq 0 ]; then
+            echo "merge class: merge:auto"
+          elif [ "$auto" -eq 0 ] && [ "$review" -eq 1 ]; then
+            echo "merge class: merge:review"
+          elif [ "$auto" -eq 1 ] && [ "$review" -eq 1 ]; then
+            echo "::error title=Conflicting merge class::PR carries both merge:auto and merge:review - remove one. If unsure, keep merge:review."
+            exit 1
+          else
+            echo "::error title=Missing merge class::PR carries neither merge:auto nor merge:review - add exactly one. If unsure, use merge:review."
+            exit 1
+          fi
